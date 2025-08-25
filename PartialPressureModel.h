@@ -20,7 +20,11 @@ public:
 	* @param gasName 模型对应的气体类型。
 	* @param slope 模型的斜率 'k'。
 	*/
-	PartialPressureModel(const std::string& modelName, const std::string& gasName, double slope);
+	PartialPressureModel(const std::string& modelName, 
+						 const std::string& gasName,
+						 double characteristicPeak,
+						 double slope,
+						 const std::vector<std::string>& participatingCurveNames = {});
 
 	// --- 重写基类的纯虚函数 ---
 
@@ -47,18 +51,18 @@ public:
 	* @return 斜率值。
 	*/
 	double getSlope() const;
-
-	/**
-	* @brief 获取模型创建时的时间戳。
-	* @return time_t 类型的时间戳。
-	*/
+	double getCharacteristicPeak() const; // <-- 新增方法
 	std::time_t getCreationTimestamp() const;
+	const std::vector<std::string>& getParticipatingCurveNames() const;  //获取参与计算的曲线名称列表
 
 private:
 	std::string m_modelName;
 	std::string m_gasName;
+	std::string m_modelType;
 	double      m_slope; // 斜率 (k)
 						 // 注意：这里没有 m_intercept 成员变量
+	double      m_characteristicPeak; // 特征峰位置
+	std::vector<std::string> m_participatingCurveNames;
 	std::time_t m_creationTimestamp;
 };
 

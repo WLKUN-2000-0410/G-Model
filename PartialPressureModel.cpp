@@ -2,10 +2,13 @@
 #include <stdexcept> // 用于抛出异常
 #include <limits>    // 用于 std::numeric_limits
 
-PartialPressureModel::PartialPressureModel(const std::string& modelName, const std::string& gasName, double slope)
+PartialPressureModel::PartialPressureModel(const std::string& modelName, const std::string& gasName, double characteristicPeak, double slope, const std::vector<std::string>& participatingCurveNames)
 	: m_modelName(modelName),
 	m_gasName(gasName),
+	m_modelType("分压法"),
+	m_characteristicPeak(characteristicPeak),
 	m_slope(slope),
+	m_participatingCurveNames(participatingCurveNames),
 	m_creationTimestamp(std::time(nullptr)) // 初始化时记录当前时间
 {
 	// 构造函数中进行校验：斜率 k 不能为0，否则无法计算
@@ -48,7 +51,7 @@ std::string PartialPressureModel::getGasName() const
 std::string PartialPressureModel::getModelType() const
 {
 	// 返回这个类的特定类型名称
-	return "分压法";
+	return m_modelType;
 }
 
 double PartialPressureModel::getSlope() const
@@ -59,4 +62,12 @@ double PartialPressureModel::getSlope() const
 std::time_t PartialPressureModel::getCreationTimestamp() const
 {
 	return m_creationTimestamp;
+}
+double PartialPressureModel::getCharacteristicPeak() const // <-- 实现新增方法
+{
+	return m_characteristicPeak;
+}
+const std::vector<std::string>& PartialPressureModel::getParticipatingCurveNames() const
+{
+	return m_participatingCurveNames;
 }

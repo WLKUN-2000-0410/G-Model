@@ -6,6 +6,7 @@
 ConcentrationModel ModelFitter::fitConcentrationModel(
 	const std::string& modelName,
 	const std::string& gasName,
+	double characteristicPeak,
 	const std::vector<DataPoint>& calibrationPoints)
 {
 	if (calibrationPoints.size() < 2) {
@@ -30,7 +31,15 @@ ConcentrationModel ModelFitter::fitConcentrationModel(
 	double slope_a = (n * sum_xy - sum_x * sum_y) / denominator;
 	double intercept_b = (sum_y - slope_a * sum_x) / n;
 
-	return ConcentrationModel(modelName, gasName, slope_a, intercept_b);
+	// 收集参与计算的曲线名称
+	std::vector<std::string> participatingCurves;
+	for (const auto& point : calibrationPoints) {
+		if (!point.curveName.empty()) {
+			participatingCurves.push_back(point.curveName);
+		}
+	}
+
+	return ConcentrationModel(modelName, gasName, characteristicPeak, slope_a, intercept_b,participatingCurves);
 }
 
 
@@ -38,6 +47,7 @@ ConcentrationModel ModelFitter::fitConcentrationModel(
 PartialPressureModel ModelFitter::fitPartialPressureModel(
 	const std::string& modelName,
 	const std::string& gasName,
+	double characteristicPeak, // <-- 新增参数
 	const std::vector<DataPoint>& calibrationPoints)
 {
 	// 强制通过原点的拟合，理论上1个点就够，但多个点更稳定
@@ -62,5 +72,13 @@ PartialPressureModel ModelFitter::fitPartialPressureModel(
 	// 计算斜率 k
 	double slope_k = sum_xy / sum_x_squared;
 
-	return PartialPressureModel(modelName, gasName, slope_k);
+	// 收集参与计算的曲线名称
+	std::vector<std::string> participatingCurves;
+	for (const auto& point : calibrationPoints) {
+		if (!point.curveName.empty()) {
+			participatingCurves.push_back(point.curveName);
+		}
+	}
+
+	return PartialPressureModel(modelName, gasName, characteristicPeak,slope_k,participatingCurves);
 }

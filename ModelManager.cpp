@@ -22,6 +22,7 @@ bool ModelManager::createNewModel(
 	ModelType modelType,
 	const std::string& modelName,
 	const std::string& gasName,
+	double characteristicPeak,
 	const std::vector<DataPoint>& calibrationPoints)
 {
 	if (m_modelRegistry.count(modelName) > 0) {
@@ -30,13 +31,13 @@ bool ModelManager::createNewModel(
 
 	try {
 		if (modelType == ModelType::Concentration) {
-			ConcentrationModel newModel = ModelFitter::fitConcentrationModel(modelName, gasName, calibrationPoints);
+			ConcentrationModel newModel = ModelFitter::fitConcentrationModel(modelName, gasName, characteristicPeak, calibrationPoints);
 			m_modelRegistry[modelName] = std::make_unique<ConcentrationModel>(std::move(newModel));
 
 		}
 		else if (modelType == ModelType::PartialPressure) { // <<-- 新增的分支
 															// 调用新的拟合方法
-			PartialPressureModel newModel = ModelFitter::fitPartialPressureModel(modelName, gasName, calibrationPoints);
+			PartialPressureModel newModel = ModelFitter::fitPartialPressureModel(modelName, gasName, characteristicPeak, calibrationPoints);
 			// 存入 PartialPressureModel 类型的对象
 			m_modelRegistry[modelName] = std::make_unique<PartialPressureModel>(std::move(newModel));
 
@@ -82,11 +83,23 @@ bool ModelManager::renameModel(const std::string& oldName, const std::string& ne
 		newModelWithNewName = std::make_unique<ConcentrationModel>(
 			newName,
 			oldConcModel->getGasName(),
+			oldConcModel->getCharacteristicPeak(),
 			oldConcModel->getSlope(),
-			oldConcModel->getIntercept()
+			oldConcModel->getIntercept(),
+			oldConcModel->getParticipatingCurveNames()
 			);
 	}
-	// ... 未来在这里添加对分压法的处理 ...
+	// 对分压法的处理 ...
+	else if (modelToMove->getModelType() == "分压法") { // <-- 补充对分压法的重命名逻辑
+		const PartialPressureModel* oldPPModel = static_cast<const PartialPressureModel*>(modelToMove.get());
+		newModelWithNewName = std::make_unique<PartialPressureModel>(
+			newName,
+			oldPPModel->getGasName(),
+			oldPPModel->getCharacteristicPeak(), // <-- 复制特征峰
+			oldPPModel->getSlope(),
+			oldPPModel->getParticipatingCurveNames()
+		);
+	}
 	else {
 		// 如果遇到未知类型，无法处理，重命名失败
 		return false;
@@ -154,9 +167,20 @@ bool ModelManager::saveModelsToFile(const std::string& filePath) const
 				localtime_s(&tm_struct, &ts); // C++11 安全版本
 
 											  // 使用 std::put_time 进行格式化输出
+				outFile << "CharacteristicPeak=" << concModel->getCharacteristicPeak() << std::endl;
 				outFile << "Slope=" << concModel->getSlope() << std::endl;
 				outFile << "Intercept=" << concModel->getIntercept() << std::endl;
 				outFile << "Timestamp=" << std::put_time(&tm_struct, "%Y-%m-%d %H:%M:%S") << std::endl;
+				// 新增：保存参与计算的曲线名称
+				const auto& curveNames = concModel->getParticipatingCurveNames();
+				if (!curveNames.empty()) {
+					outFile << "ParticipatingCurves=";
+					for (size_t i = 0; i < curveNames.size(); ++i) {
+						if (i > 0) outFile << ";";  // 用分号分隔多个曲线名
+						outFile << curveNames[i];
+					}
+					outFile << std::endl;
+				}
 			}
 		}
 		else if (modelPtr->getModelType() == "分压法") { // <<-- 新增的分支
@@ -165,10 +189,20 @@ bool ModelManager::saveModelsToFile(const std::string& filePath) const
 				std::time_t ts = ppModel->getCreationTimestamp();
 				std::tm tm_struct;
 				localtime_s(&tm_struct, &ts);
-
+				outFile << "CharacteristicPeak=" << ppModel->getCharacteristicPeak() << std::endl;
 				outFile << "Slope=" << ppModel->getSlope() << std::endl;
 				// 注意：分压法模型没有截距，所以我们不写入 Intercept
 				outFile << "Timestamp=" << std::put_time(&tm_struct, "%Y-%m-%d %H:%M:%S") << std::endl;
+				// 新增：保存参与计算的曲线名称
+				const auto& curveNames = ppModel->getParticipatingCurveNames();
+				if (!curveNames.empty()) {
+					outFile << "ParticipatingCurves=";
+					for (size_t i = 0; i < curveNames.size(); ++i) {
+						if (i > 0) outFile << ";";  // 用分号分隔多个曲线名
+						outFile << curveNames[i];
+					}
+					outFile << std::endl;
+				}
 			}
 		}
 		outFile << std::endl;
@@ -189,7 +223,8 @@ bool ModelManager::loadModelsFromFile(const std::string& filePath)
 	m_modelRegistry.clear();
 	std::string line;
 	std::string currentModelName, currentGasName, currentModelType;
-	double currentSlope = 0.0, currentIntercept = 0.0;
+	std::vector<std::string> currentParticipatingCurves;
+	double currentCharacteristicPeak = 0.0, currentSlope = 0.0, currentIntercept = 0.0;
 	// time_t currentTimestamp = 0; // 暂时不处理时间戳的恢复
 	bool is_reading_model = false;
 
@@ -200,14 +235,14 @@ bool ModelManager::loadModelsFromFile(const std::string& filePath)
 
 				if (currentModelType == "浓度法") {
 					auto model = std::make_unique<ConcentrationModel>(
-						currentModelName, currentGasName, currentSlope, currentIntercept
+						currentModelName, currentGasName, currentCharacteristicPeak, currentSlope, currentIntercept, currentParticipatingCurves
 						);
 					m_modelRegistry[currentModelName] = std::move(model);
 				}
 				else if (currentModelType == "分压法") { // <<-- 新增的分支
 													  // 注意：分压法模型不需要 currentIntercept 参数
 					auto model = std::make_unique<PartialPressureModel>(
-						currentModelName, currentGasName, currentSlope
+						currentModelName, currentGasName, currentCharacteristicPeak, currentSlope, currentParticipatingCurves
 						);
 					m_modelRegistry[currentModelName] = std::move(model);
 				}
@@ -242,9 +277,21 @@ bool ModelManager::loadModelsFromFile(const std::string& filePath)
 			try {
 				if (key == "GasName") currentGasName = value;
 				else if (key == "ModelType") currentModelType = value;
+				else if (key == "CharacteristicPeak") currentCharacteristicPeak = std::stod(value);
 				else if (key == "Slope") currentSlope = std::stod(value);
 				else if (key == "Intercept") currentIntercept = std::stod(value); // 即使分压法没有截距，也安全地读取并忽略
-																				  // else if (key == "Timestamp") { /* 解析逻辑可以加在这里 */ }
+				else if (key == "ParticipatingCurves") {
+					// 解析分号分隔的曲线名称
+					currentParticipatingCurves.clear();
+					std::stringstream ss(value);
+					std::string curveName;
+					while (std::getline(ss, curveName, ';')) {
+						trim(curveName);
+						if (!curveName.empty()) {
+							currentParticipatingCurves.push_back(curveName);
+						}
+					}
+				}
 			}
 			catch (const std::exception& e) {
 				std::cerr << "Error parsing value for key '" << key << "': " << value << std::endl;
@@ -253,7 +300,7 @@ bool ModelManager::loadModelsFromFile(const std::string& filePath)
 	}
 	// 确保文件中的最后一个模型也被处理
 	finalizeCurrentModel();
-
+	currentParticipatingCurves.clear();
 	inFile.close();
 	std::cout << "Successfully loaded " << m_modelRegistry.size() << " models from " << filePath << std::endl;
 	return true;

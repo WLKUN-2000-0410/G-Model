@@ -2,7 +2,7 @@
 #define IGASMODEL_H
 
 #include <string>
-
+#include <vector>
 // 用于在计算时传递额外参数的上下文结构体
 struct CalculationContext {
 	// 对于分压法，这里会用到总压；对于浓度法，则可以忽略。

@@ -40,6 +40,7 @@ public:
 		ModelType modelType,
 		const std::string& modelName,
 		const std::string& gasName,
+		double characteristicPeak,
 		const std::vector<DataPoint>& calibrationPoints
 	);
 

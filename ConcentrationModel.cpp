@@ -2,11 +2,19 @@
 #include <limits> // 用于 std::numeric_limits
 #include <stdexcept> // 用于抛出异常
 
-ConcentrationModel::ConcentrationModel(const std::string& modelName, const std::string& gasName, double slope, double intercept)
+ConcentrationModel::ConcentrationModel(const std::string& modelName, 
+									   const std::string& gasName, 
+									   double characteristicPeak, 
+									   double slope, 
+									   double intercept,
+									   const std::vector<std::string>& participatingCurveNames)
 	: m_modelName(modelName),
 	m_gasName(gasName),
+	m_modelType("浓度法"),
+	m_characteristicPeak(characteristicPeak),
 	m_slope(slope),
 	m_intercept(intercept),
+	m_participatingCurveNames(participatingCurveNames),
 	m_creationTimestamp(std::time(nullptr)) // 初始化时记录当前时间
 {
 	// 构造函数中添加一些校验逻辑
@@ -35,8 +43,7 @@ std::string ConcentrationModel::getGasName() const
 
 std::string ConcentrationModel::getModelType() const
 {
-	// 返回这个类的特定类型名称
-	return "浓度法";
+	return m_modelType; // <-- 修改为返回成员变量
 }
 
 double ConcentrationModel::getSlope() const
@@ -52,4 +59,12 @@ double ConcentrationModel::getIntercept() const
 std::time_t ConcentrationModel::getCreationTimestamp() const
 {
 	return m_creationTimestamp;
+}
+double ConcentrationModel::getCharacteristicPeak() const // <-- 实现新增方法
+{
+	return m_characteristicPeak;
+}
+const std::vector<std::string>& ConcentrationModel::getParticipatingCurveNames() const
+{
+	return m_participatingCurveNames;
 }

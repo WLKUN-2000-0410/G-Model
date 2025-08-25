@@ -11,8 +11,18 @@
 *
 */
 struct DataPoint {
+	std::string curveName; // 曲线名称 
 	double x_value; // 自变量 X (可以是浓度 或 分压)
 	double y_value; // 因变量 Y (仪器信号)
+
+	// 构造函数
+	DataPoint(double x, double y, const std::string& curve)
+		: x_value(x), y_value(y), curveName(curve) {
+	}
+	// 兼容原有使用方式
+	DataPoint(double x, double y)
+		: x_value(x), y_value(y), curveName("") {
+	}
 };
 
 /**
@@ -36,6 +46,7 @@ public:
 	static ConcentrationModel fitConcentrationModel(
 		const std::string& modelName,
 		const std::string& gasName,
+		double characteristicPeak,
 		const std::vector<DataPoint>& calibrationPoints
 	);
 
@@ -45,6 +56,7 @@ public:
 	static PartialPressureModel fitPartialPressureModel(
 		const std::string& modelName,
 		const std::string& gasName,
+		double characteristicPeak,
 		const std::vector<DataPoint>& calibrationPoints
 	);
 
