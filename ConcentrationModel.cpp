@@ -7,7 +7,8 @@ ConcentrationModel::ConcentrationModel(const std::string& modelName,
 									   double characteristicPeak, 
 									   double slope, 
 									   double intercept,
-									   const std::vector<std::string>& participatingCurveNames)
+									   const std::vector<std::string>& participatingCurveNames,
+									   const std::string& creationTime)
 	: m_modelName(modelName),
 	m_gasName(gasName),
 	m_modelType("浓度法"),
@@ -15,7 +16,7 @@ ConcentrationModel::ConcentrationModel(const std::string& modelName,
 	m_slope(slope),
 	m_intercept(intercept),
 	m_participatingCurveNames(participatingCurveNames),
-	m_creationTimestamp(std::time(nullptr)) // 初始化时记录当前时间
+	m_creationTimestamp(creationTime) // 初始化时记录当前时间
 {
 	// 构造函数中添加一些校验逻辑
 	if (std::abs(m_slope) < std::numeric_limits<double>::epsilon()) {
@@ -23,6 +24,11 @@ ConcentrationModel::ConcentrationModel(const std::string& modelName,
 		throw std::invalid_argument("Model slope cannot be zero.");
 	}
 }
+std::string ConcentrationModel::getCreationTimestamp() const  // 返回字符串
+{
+	return m_creationTimestamp;
+}
+
 
 double ConcentrationModel::calculateConcentration(double rawSignal, const CalculationContext& context) const
 {
@@ -56,10 +62,7 @@ double ConcentrationModel::getIntercept() const
 	return m_intercept;
 }
 
-std::time_t ConcentrationModel::getCreationTimestamp() const
-{
-	return m_creationTimestamp;
-}
+
 double ConcentrationModel::getCharacteristicPeak() const // <-- 实现新增方法
 {
 	return m_characteristicPeak;

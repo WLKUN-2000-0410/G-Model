@@ -24,7 +24,8 @@ public:
 						 const std::string& gasName,
 						 double characteristicPeak,
 						 double slope,
-						 const std::vector<std::string>& participatingCurveNames = {});
+						 const std::vector<std::string>& participatingCurveNames ,
+						 const std::string& creationTime);
 
 	// --- 重写基类的纯虚函数 ---
 
@@ -43,7 +44,7 @@ public:
 	std::string getModelName() const override;
 	std::string getGasName() const override;
 	std::string getModelType() const override;
-
+	std::string getCreationTimestamp() const override;
 	// --- PartialPressureModel 特有的方法 ---
 
 	/**
@@ -52,7 +53,7 @@ public:
 	*/
 	double getSlope() const;
 	double getCharacteristicPeak() const; // <-- 新增方法
-	std::time_t getCreationTimestamp() const;
+	
 	const std::vector<std::string>& getParticipatingCurveNames() const;  //获取参与计算的曲线名称列表
 
 private:
@@ -63,7 +64,7 @@ private:
 						 // 注意：这里没有 m_intercept 成员变量
 	double      m_characteristicPeak; // 特征峰位置
 	std::vector<std::string> m_participatingCurveNames;
-	std::time_t m_creationTimestamp;
+	std::string m_creationTimestamp;
 };
 
 #endif // PARTIALPRESSUREMODEL_H

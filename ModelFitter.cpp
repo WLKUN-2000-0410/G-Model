@@ -7,7 +7,9 @@ ConcentrationModel ModelFitter::fitConcentrationModel(
 	const std::string& modelName,
 	const std::string& gasName,
 	double characteristicPeak,
-	const std::vector<DataPoint>& calibrationPoints)
+	const std::vector<DataPoint>& calibrationPoints,
+	const std::string& creationTime
+	)
 {
 	if (calibrationPoints.size() < 2) {
 		throw std::invalid_argument("Standard linear regression (y=ax+b) requires at least 2 data points.");
@@ -39,7 +41,8 @@ ConcentrationModel ModelFitter::fitConcentrationModel(
 		}
 	}
 
-	return ConcentrationModel(modelName, gasName, characteristicPeak, slope_a, intercept_b,participatingCurves);
+
+	return ConcentrationModel(modelName, gasName, characteristicPeak, slope_a, intercept_b,participatingCurves, creationTime);
 }
 
 
@@ -48,7 +51,8 @@ PartialPressureModel ModelFitter::fitPartialPressureModel(
 	const std::string& modelName,
 	const std::string& gasName,
 	double characteristicPeak, // <-- 新增参数
-	const std::vector<DataPoint>& calibrationPoints)
+	const std::vector<DataPoint>& calibrationPoints,
+	const std::string& creationTime)
 {
 	// 强制通过原点的拟合，理论上1个点就够，但多个点更稳定
 	if (calibrationPoints.empty()) {
@@ -79,6 +83,6 @@ PartialPressureModel ModelFitter::fitPartialPressureModel(
 			participatingCurves.push_back(point.curveName);
 		}
 	}
-
-	return PartialPressureModel(modelName, gasName, characteristicPeak,slope_k,participatingCurves);
+	
+	return PartialPressureModel(modelName, gasName, characteristicPeak,slope_k,participatingCurves, creationTime);
 }

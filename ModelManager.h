@@ -86,6 +86,9 @@ public:
 	*/
 	bool saveModelsToFile(const std::string& filePath) const;
 
+	std::vector<std::string> getModelNamesByType(const std::string& modelType) const;
+
+
 private:
 	// 使用 std::map 来存储模型。
 	// 键是模型的唯一名称 (std::string)。

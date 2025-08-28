@@ -32,6 +32,8 @@ public:
 	virtual std::string getModelName() const = 0;
 	virtual std::string getGasName() const = 0;
 	virtual std::string getModelType() const = 0;
+	virtual std::string getCreationTimestamp() const = 0;
+	
 };
 
 #endif // IGASMODEL_H

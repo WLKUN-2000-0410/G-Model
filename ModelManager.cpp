@@ -7,8 +7,30 @@
 #include <iomanip> // 为了使用 std::put_time
 #include "ModelManager.h"
 #include "ConcentrationModel.h"         //浓度模型
-// #include "PartialPressureModel.h"    //分压模型
+#include "PartialPressureModel.h"    //分压模型
 
+
+std::string formatTimestamp(std::time_t timestamp) {
+	std::tm timeInfo;
+	localtime_s(&timeInfo, &timestamp);
+
+	char buffer[20];
+	strftime(buffer, sizeof(buffer), "%Y-%m-%d %H:%M:%S", &timeInfo);
+	return std::string(buffer);
+}
+
+// 获取当前时间的格式化字符串
+std::string getCurrentTimestamp() {
+	return formatTimestamp(std::time(nullptr));
+}
+
+// 解析时间戳字符串为time_t（用于文件加载时的兼容性）
+std::time_t parseTimestamp(const std::string& timestampStr) {
+	std::tm tm = {};
+	std::istringstream ss(timestampStr);
+	ss >> std::get_time(&tm, "%Y-%m-%d %H:%M:%S");
+	return std::mktime(&tm);
+}
 
 ModelManager::ModelManager()
 {
@@ -31,13 +53,13 @@ bool ModelManager::createNewModel(
 
 	try {
 		if (modelType == ModelType::Concentration) {
-			ConcentrationModel newModel = ModelFitter::fitConcentrationModel(modelName, gasName, characteristicPeak, calibrationPoints);
+			ConcentrationModel newModel = ModelFitter::fitConcentrationModel(modelName, gasName, characteristicPeak, calibrationPoints, getCurrentTimestamp());
 			m_modelRegistry[modelName] = std::make_unique<ConcentrationModel>(std::move(newModel));
 
 		}
 		else if (modelType == ModelType::PartialPressure) { // <<-- 新增的分支
 															// 调用新的拟合方法
-			PartialPressureModel newModel = ModelFitter::fitPartialPressureModel(modelName, gasName, characteristicPeak, calibrationPoints);
+			PartialPressureModel newModel = ModelFitter::fitPartialPressureModel(modelName, gasName, characteristicPeak, calibrationPoints,getCurrentTimestamp());
 			// 存入 PartialPressureModel 类型的对象
 			m_modelRegistry[modelName] = std::make_unique<PartialPressureModel>(std::move(newModel));
 
@@ -86,7 +108,8 @@ bool ModelManager::renameModel(const std::string& oldName, const std::string& ne
 			oldConcModel->getCharacteristicPeak(),
 			oldConcModel->getSlope(),
 			oldConcModel->getIntercept(),
-			oldConcModel->getParticipatingCurveNames()
+			oldConcModel->getParticipatingCurveNames(),
+			oldConcModel->getCreationTimestamp()
 			);
 	}
 	// 对分压法的处理 ...
@@ -97,7 +120,8 @@ bool ModelManager::renameModel(const std::string& oldName, const std::string& ne
 			oldPPModel->getGasName(),
 			oldPPModel->getCharacteristicPeak(), // <-- 复制特征峰
 			oldPPModel->getSlope(),
-			oldPPModel->getParticipatingCurveNames()
+			oldPPModel->getParticipatingCurveNames(),
+			oldPPModel->getCreationTimestamp()
 		);
 	}
 	else {
@@ -161,16 +185,10 @@ bool ModelManager::saveModelsToFile(const std::string& filePath) const
 		if (modelPtr->getModelType() == "浓度法") {
 			const ConcentrationModel* concModel = dynamic_cast<const ConcentrationModel*>(modelPtr.get());
 			if (concModel) {
-				// 将 time_t 转换为 tm 结构体以进行格式化
-				std::time_t ts = concModel->getCreationTimestamp();
-				std::tm tm_struct;
-				localtime_s(&tm_struct, &ts); // C++11 安全版本
-
-											  // 使用 std::put_time 进行格式化输出
 				outFile << "CharacteristicPeak=" << concModel->getCharacteristicPeak() << std::endl;
 				outFile << "Slope=" << concModel->getSlope() << std::endl;
 				outFile << "Intercept=" << concModel->getIntercept() << std::endl;
-				outFile << "Timestamp=" << std::put_time(&tm_struct, "%Y-%m-%d %H:%M:%S") << std::endl;
+				outFile << "Timestamp=" << concModel->getCreationTimestamp() << std::endl;
 				// 新增：保存参与计算的曲线名称
 				const auto& curveNames = concModel->getParticipatingCurveNames();
 				if (!curveNames.empty()) {
@@ -186,13 +204,11 @@ bool ModelManager::saveModelsToFile(const std::string& filePath) const
 		else if (modelPtr->getModelType() == "分压法") { // <<-- 新增的分支
 			const PartialPressureModel* ppModel = dynamic_cast<const PartialPressureModel*>(modelPtr.get());
 			if (ppModel) {
-				std::time_t ts = ppModel->getCreationTimestamp();
-				std::tm tm_struct;
-				localtime_s(&tm_struct, &ts);
+				
 				outFile << "CharacteristicPeak=" << ppModel->getCharacteristicPeak() << std::endl;
 				outFile << "Slope=" << ppModel->getSlope() << std::endl;
 				// 注意：分压法模型没有截距，所以我们不写入 Intercept
-				outFile << "Timestamp=" << std::put_time(&tm_struct, "%Y-%m-%d %H:%M:%S") << std::endl;
+				outFile << "Timestamp=" << ppModel->getCreationTimestamp() << std::endl;
 				// 新增：保存参与计算的曲线名称
 				const auto& curveNames = ppModel->getParticipatingCurveNames();
 				if (!curveNames.empty()) {
@@ -222,10 +238,10 @@ bool ModelManager::loadModelsFromFile(const std::string& filePath)
 	}
 	m_modelRegistry.clear();
 	std::string line;
-	std::string currentModelName, currentGasName, currentModelType;
+	std::string currentModelName, currentGasName, currentModelType, currentTimestamp;
 	std::vector<std::string> currentParticipatingCurves;
 	double currentCharacteristicPeak = 0.0, currentSlope = 0.0, currentIntercept = 0.0;
-	// time_t currentTimestamp = 0; // 暂时不处理时间戳的恢复
+	
 	bool is_reading_model = false;
 
 	auto finalizeCurrentModel = [&]() {
@@ -235,15 +251,26 @@ bool ModelManager::loadModelsFromFile(const std::string& filePath)
 
 				if (currentModelType == "浓度法") {
 					auto model = std::make_unique<ConcentrationModel>(
-						currentModelName, currentGasName, currentCharacteristicPeak, currentSlope, currentIntercept, currentParticipatingCurves
-						);
+						currentModelName,
+						currentGasName,
+						currentCharacteristicPeak,
+						currentSlope,
+						currentIntercept,
+						currentParticipatingCurves,
+						currentTimestamp
+					);
 					m_modelRegistry[currentModelName] = std::move(model);
 				}
 				else if (currentModelType == "分压法") { // <<-- 新增的分支
 													  // 注意：分压法模型不需要 currentIntercept 参数
 					auto model = std::make_unique<PartialPressureModel>(
-						currentModelName, currentGasName, currentCharacteristicPeak, currentSlope, currentParticipatingCurves
-						);
+						currentModelName,
+						currentGasName,
+						currentCharacteristicPeak,
+						currentSlope,
+						currentParticipatingCurves,
+						currentTimestamp
+					);
 					m_modelRegistry[currentModelName] = std::move(model);
 				}
 
@@ -280,6 +307,7 @@ bool ModelManager::loadModelsFromFile(const std::string& filePath)
 				else if (key == "CharacteristicPeak") currentCharacteristicPeak = std::stod(value);
 				else if (key == "Slope") currentSlope = std::stod(value);
 				else if (key == "Intercept") currentIntercept = std::stod(value); // 即使分压法没有截距，也安全地读取并忽略
+				else if (key == "Timestamp") currentTimestamp = value;
 				else if (key == "ParticipatingCurves") {
 					// 解析分号分隔的曲线名称
 					currentParticipatingCurves.clear();
@@ -304,4 +332,15 @@ bool ModelManager::loadModelsFromFile(const std::string& filePath)
 	inFile.close();
 	std::cout << "Successfully loaded " << m_modelRegistry.size() << " models from " << filePath << std::endl;
 	return true;
+}
+std::vector<std::string> ModelManager::getModelNamesByType(const std::string& modelType) const
+{
+	std::vector<std::string> names;
+	for (const auto& pair : m_modelRegistry) {
+		// 通过 getModelType() 方法来判断模型类型
+		if (pair.second->getModelType() == modelType) {
+			names.push_back(pair.first);
+		}
+	}
+	return names;
 }

@@ -2,14 +2,20 @@
 #include <stdexcept> // 用于抛出异常
 #include <limits>    // 用于 std::numeric_limits
 
-PartialPressureModel::PartialPressureModel(const std::string& modelName, const std::string& gasName, double characteristicPeak, double slope, const std::vector<std::string>& participatingCurveNames)
+PartialPressureModel::PartialPressureModel(
+	const std::string& modelName, 
+	const std::string& gasName, 
+	double characteristicPeak, 
+	double slope, 
+	const std::vector<std::string>& participatingCurveNames,
+	const std::string& creationTime)
 	: m_modelName(modelName),
 	m_gasName(gasName),
 	m_modelType("分压法"),
 	m_characteristicPeak(characteristicPeak),
 	m_slope(slope),
 	m_participatingCurveNames(participatingCurveNames),
-	m_creationTimestamp(std::time(nullptr)) // 初始化时记录当前时间
+	m_creationTimestamp(creationTime) // 初始化时记录当前时间
 {
 	// 构造函数中进行校验：斜率 k 不能为0，否则无法计算
 	if (std::abs(m_slope) < std::numeric_limits<double>::epsilon()) {
@@ -59,7 +65,7 @@ double PartialPressureModel::getSlope() const
 	return m_slope;
 }
 
-std::time_t PartialPressureModel::getCreationTimestamp() const
+std::string PartialPressureModel::getCreationTimestamp() const
 {
 	return m_creationTimestamp;
 }
